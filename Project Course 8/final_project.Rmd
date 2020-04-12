@@ -1,0 +1,80 @@
+---
+title: "Final Project: Buil a Prediction Model"
+author: "Author: Hiba"
+date: "11/04/2020"
+output:
+  html_document: 
+    keep_md: yes
+---
+
+## Overview
+One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, we use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants who were asked to perform barbell lifts correctly and incorrectly in 5 different ways. 
+A prediction model is built to predict which of these 5 ways is the exercice being performed. The final model use a Random Forest method with 99.03% accuracy on the validation set.
+
+
+## Data Processing  
+  Let's first read the raw files and useful packages:  
+
+```{r , warning=FALSE , message=F, cache=T}
+library(caret)
+pml_training <- read.csv('pml-training.csv')
+pml_testing <- read.csv('pml-testing.csv')
+
+```
+ **Features Selection:** Since the prediction model will be used to predict 20 different test cases from the `pml_testing` data, we need to take into account what kind of features it has, and to do so, we will select features which matches the columns containing no NA values in the `pml_testing`data:
+
+
+
+```{r , warning=FALSE , message=F, cache=T}
+features <- colnames(pml_testing)[colSums(is.na(pml_testing)) == 0]
+features <- features[c(-(1:10),-60)]
+sub_pml_training <- pml_training[,c(features,"classe")]
+```
+
+**Cross Validation:** Before we build our model and directly apply it to the testing data, we will split the training data into *sub_train* (80%) and *sub_test* (20%):
+
+```{r , warning=FALSE , message=F, cache=T}
+set.seed(23432)
+inTrain = createDataPartition(sub_pml_training$classe, p = 0.8)[[1]]
+sub_train = sub_pml_training[ inTrain,]  # 15699 obs. of  50 variables
+sub_test = sub_pml_training[ -inTrain,]  #3923 obs. of  50 variables
+```
+
+### Prediction with Trees
+We will first try this model, which iteratively splits variables into groups (effectively constructing decision trees) to produces a nonlinear model and classify our observations into a specific manner of doing the exercise:
+```{r , warning=FALSE , message=F, cache=T}
+treemod <- train(classe ~ ., data=sub_train, method="rpart")
+library(rattle )
+fancyRpartPlot(treemod$finalModel, main="Rattle plot of the decision tree classification model",caption="")
+```
+
+```{r , warning=FALSE , message=F, cache=T}
+confusionMatrix(predict(treemod, sub_test), sub_test$classe)
+```
+As the accuracy of the decicison tree model is small (below 50%). We will try another model:
+
+### Random Forest
+As an extension of bagging on classification trees, we will try a Random Forest model, with 100 trees. Instead of the `train` function from caret package, we use the `randomForest` package since it's faster:
+```{r , warning=FALSE , message=F, cache=T}
+library(randomForest)
+modrf <- randomForest(classe~., data=sub_train, ntree=100, do.trace=F)
+confusionMatrix(predict(modrf, sub_test), sub_test$classe)
+```
+The accuracy of this model is very high (99.03%).
+We will keep this model.  
+  
+    
+    
+
+### Prediction on the 20 observations
+
+We can now confidently use the Random Forest model on the `pml_testing` dataset to predict the manner in which the exercise was done for the 20 observations:
+
+
+
+```{r , warning=FALSE , message=F, cache=T}
+predict(modrf, pml_testing)
+```
+
+
+
